@@ -10,6 +10,7 @@ class Settings(BaseModel):
     agent_model: str = "claude-haiku-5-5"
     guard_model: str = "claude-haiku-5-5"
     classifier_model: str = "claude-haiku-5-5"
+    agent_max_tokens: int = 1024
 
 
 @lru_cache
