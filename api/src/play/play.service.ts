@@ -4,6 +4,8 @@ import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { PG_POOL } from '../db/db.module';
 import { LevelsService } from '../levels/levels.service';
+import { BudgetService } from '../ratelimit/budget.service';
+import { RateLimitService } from '../ratelimit/ratelimit.service';
 import { AGENT_CLIENT, type AgentChatResponse, type AgentClient } from './agent.client';
 import { detectLeak } from './leak-detection';
 
@@ -26,13 +28,18 @@ export class PlayService {
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(AGENT_CLIENT) private readonly agent: AgentClient,
     private readonly levels: LevelsService,
+    private readonly limiter: RateLimitService,
+    private readonly budget: BudgetService,
   ) {}
 
   estimateCost(usage: AgentChatResponse['usage']): number {
     return (usage.inputTokens * this.env.PRICE_INPUT_PER_MTOK + usage.outputTokens * this.env.PRICE_OUTPUT_PER_MTOK) / 1_000_000;
   }
 
-  async attempt(playerId: string, level: number, input: AttemptInput): Promise<AttemptResult> {
+  async attempt(playerId: string, level: number, input: AttemptInput, ipHash: string | null): Promise<AttemptResult> {
+    // Budget first: while the agent is resting, nobody burns their rate-limit quota.
+    await this.budget.assertAvailable();
+    await this.limiter.consumeAttempt(playerId, ipHash);
     await this.levels.assertPlayable(playerId, level);
     const secret = await this.levels.ensureSecret(playerId, level);
     const history = await this.levels.history(playerId, level);
@@ -44,6 +51,9 @@ export class PlayService {
       if (err instanceof HttpException) throw err;
       throw new BadGatewayException('Agent service error');
     }
+
+    const costUsd = this.estimateCost(res.usage);
+    await this.budget.record(costUsd);
 
     const leaked = detectLeak(secret, res.reply, res.toolCalls);
     const { rows } = await this.pool.query<{ id: string }>(
@@ -63,7 +73,7 @@ export class PlayService {
         leaked,
         res.usage.inputTokens,
         res.usage.outputTokens,
-        this.estimateCost(res.usage),
+        costUsd,
         res.latencyMs,
       ],
     );

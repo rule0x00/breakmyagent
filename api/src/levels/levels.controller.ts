@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { JwtGuard } from '../auth/jwt.guard';
 import { CurrentPlayer, type Player } from '../auth/player';
 import { ZodPipe } from '../common/zod.pipe';
+import { RateLimitService } from '../ratelimit/ratelimit.service';
 import { LevelsService } from './levels.service';
 
 const submitSchema = z.object({ secret: z.string().min(1).max(100) });
@@ -10,7 +11,10 @@ const submitSchema = z.object({ secret: z.string().min(1).max(100) });
 @Controller('levels')
 @UseGuards(JwtGuard)
 export class LevelsController {
-  constructor(private readonly levels: LevelsService) {}
+  constructor(
+    private readonly levels: LevelsService,
+    private readonly limiter: RateLimitService,
+  ) {}
 
   @Get()
   list(@CurrentPlayer() player: Player) {
@@ -24,11 +28,12 @@ export class LevelsController {
 
   @Post(':n/submit')
   @HttpCode(200)
-  submit(
+  async submit(
     @CurrentPlayer() player: Player,
     @Param('n', ParseIntPipe) n: number,
     @Body(new ZodPipe(submitSchema)) body: z.infer<typeof submitSchema>,
   ) {
+    await this.limiter.consumeSubmit(player.id);
     return this.levels.submit(player.id, n, body.secret);
   }
 
