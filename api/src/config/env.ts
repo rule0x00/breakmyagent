@@ -14,6 +14,12 @@ const envSchema = z.object({
   RATE_LIMIT_PER_DAY: z.coerce.number().int().positive().default(150),
   RATE_LIMIT_IP_PER_MIN: z.coerce.number().int().positive().default(30),
   RATE_LIMIT_SUBMIT_PER_MIN: z.coerce.number().int().positive().default(10),
+  CLASSIFY_WORKER: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  CLASSIFY_CONCURRENCY: z.coerce.number().int().positive().default(4),
+  CLASSIFY_BACKOFF_MS: z.coerce.number().int().positive().default(2000),
   DAILY_BUDGET_USD: z.coerce.number().nonnegative().default(5),
   PRICE_INPUT_PER_MTOK: z.coerce.number().nonnegative().default(0.1),
   PRICE_OUTPUT_PER_MTOK: z.coerce.number().nonnegative().default(0.5),

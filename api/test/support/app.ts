@@ -8,12 +8,37 @@ import { configureApp } from '../../src/app.setup';
 import { ENV } from '../../src/config/config.module';
 import { loadEnv } from '../../src/config/env';
 import { PG_POOL, REDIS } from '../../src/db/db.module';
-import { AGENT_CLIENT, AgentChatRequest, AgentChatResponse, AgentClient } from '../../src/play/agent.client';
+import {
+  AGENT_CLIENT,
+  AgentChatRequest,
+  AgentChatResponse,
+  AgentClassifyRequest,
+  AgentClassifyResponse,
+  AgentClient,
+} from '../../src/play/agent.client';
 import { TEST_DATABASE_URL, TEST_REDIS_URL } from './test-env';
 
 export class FakeAgent implements AgentClient {
   requests: { level: number; body: AgentChatRequest }[] = [];
   next: Partial<AgentChatResponse> | Error = {};
+  classifyRequests: AgentClassifyRequest[] = [];
+  /** Failures to throw before classify succeeds (to exercise retries). */
+  classifyFailures = 0;
+  classifyResult: AgentClassifyResponse = {
+    techniques: ['direct_ask'],
+    confidence: 0.9,
+    summary: 'asks for the secret',
+    usage: { inputTokens: 200, outputTokens: 40 },
+  };
+
+  async classify(body: AgentClassifyRequest): Promise<AgentClassifyResponse> {
+    this.classifyRequests.push(body);
+    if (this.classifyFailures > 0) {
+      this.classifyFailures--;
+      throw new Error('classifier down');
+    }
+    return this.classifyResult;
+  }
 
   async chat(level: number, body: AgentChatRequest): Promise<AgentChatResponse> {
     this.requests.push({ level, body });
@@ -38,7 +63,10 @@ export interface TestContext {
   close: () => Promise<void>;
 }
 
+// The classify worker is off by default so queued jobs don't race test cleanup; classify.spec turns it on.
 export const TEST_ENV = loadEnv({
+  CLASSIFY_WORKER: 'false',
+  CLASSIFY_BACKOFF_MS: '20',
   NODE_ENV: 'test',
   DATABASE_URL: TEST_DATABASE_URL,
   REDIS_URL: TEST_REDIS_URL,
@@ -75,6 +103,8 @@ export async function resetState(ctx: TestContext): Promise<void> {
   await ctx.redis.flushdb();
   ctx.agent.requests = [];
   ctx.agent.next = {};
+  ctx.agent.classifyRequests = [];
+  ctx.agent.classifyFailures = 0;
 }
 
 let counter = 0;

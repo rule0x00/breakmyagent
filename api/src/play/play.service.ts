@@ -1,5 +1,6 @@
 import { BadGatewayException, HttpException, Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
+import { ClassifyQueue } from '../classify/classify.queue';
 import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { PG_POOL } from '../db/db.module';
@@ -30,6 +31,7 @@ export class PlayService {
     private readonly levels: LevelsService,
     private readonly limiter: RateLimitService,
     private readonly budget: BudgetService,
+    private readonly classify: ClassifyQueue,
   ) {}
 
   estimateCost(usage: AgentChatResponse['usage']): number {
@@ -84,7 +86,7 @@ export class PlayService {
       { role: 'assistant', content: res.reply, ...(res.blockedBy ? { blockedBy: res.blockedBy } : {}) },
     ]);
 
-    // TODO(step 7): enqueue the classify job for rows[0].id.
+    await this.classify.enqueue(String(rows[0].id));
     return { attemptId: String(rows[0].id), reply: res.reply, toolCalls: res.toolCalls, blockedBy: res.blockedBy };
   }
 }

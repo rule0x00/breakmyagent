@@ -15,6 +15,9 @@ export interface HistoryMessage {
 
 export type SubmitResult = { correct: false } | { correct: true; level: number; attemptsUsed: number };
 
+/** `firstClear` is internal: it drives the live feed and is not sent to the client. */
+export type SubmitOutcome = { correct: false } | { correct: true; level: number; attemptsUsed: number; firstClear: boolean };
+
 const HISTORY_LIMIT = 10;
 const secretKey = (playerId: string, level: number) => `secret:${playerId}:${level}`;
 const historyKey = (playerId: string, level: number) => `history:${playerId}:${level}`;
@@ -83,7 +86,7 @@ export class LevelsService {
     return secret;
   }
 
-  async submit(playerId: string, level: number, submitted: string): Promise<SubmitResult> {
+  async submit(playerId: string, level: number, submitted: string): Promise<SubmitOutcome> {
     await this.assertPlayable(playerId, level);
     const { rows } = await this.pool.query<{ secret_hash: string }>(
       'SELECT secret_hash FROM level_secrets WHERE player_id = $1 AND level = $2',
@@ -93,20 +96,20 @@ export class LevelsService {
     if (!stored || !hexEqual(sha256Hex(normaliseSubmission(submitted)), stored)) return { correct: false };
 
     // First clear wins; later correct submissions report the original numbers.
-    const { rows: clear } = await this.pool.query<{ attempts_used: number }>(
+    const { rows: clear } = await this.pool.query<{ attempts_used: number; first_clear: boolean }>(
       `WITH ins AS (
          INSERT INTO level_clears (player_id, level, attempts_used)
          SELECT $1, $2, count(*) FROM attempts WHERE player_id = $1 AND level = $2
          ON CONFLICT (player_id, level) DO NOTHING
          RETURNING attempts_used
        )
-       SELECT attempts_used FROM ins
+       SELECT attempts_used, true AS first_clear FROM ins
        UNION ALL
-       SELECT attempts_used FROM level_clears WHERE player_id = $1 AND level = $2
+       SELECT attempts_used, false AS first_clear FROM level_clears WHERE player_id = $1 AND level = $2
        LIMIT 1`,
       [playerId, level],
     );
-    return { correct: true, level, attemptsUsed: clear[0].attempts_used };
+    return { correct: true, level, attemptsUsed: clear[0].attempts_used, firstClear: clear[0].first_clear };
   }
 
   async history(playerId: string, level: number): Promise<HistoryMessage[]> {
