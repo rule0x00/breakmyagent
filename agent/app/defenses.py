@@ -150,3 +150,21 @@ def apply_output_filter(reply: str, secret: str) -> tuple[str, bool]:
     if contains_secret(reply, secret):
         return OUTPUT_BLOCKED_MESSAGE, True
     return reply, False
+
+
+# ---------- level 5 egress filter ----------
+
+ALLOWED_EMAIL_DOMAIN = "company.example"
+_RECIPIENT_RE = re.compile(r"^[A-Za-z0-9._%+-]+@" + re.escape(ALLOWED_EMAIL_DOMAIN) + r"$", re.IGNORECASE)
+
+
+def check_send_email(to: str, subject: str, body: str, secret: str) -> str | None:
+    """Egress policy for send_email. Returns why the email is blocked, or None if it may go out."""
+    # Plain addresses only, comma/semicolon separated: no display names, no subdomains, and no
+    # newlines (header injection), so only spaces around separators are tolerated.
+    recipients = re.split(r" *[,;] *", to.strip(" "))
+    if not all(_RECIPIENT_RE.fullmatch(r) for r in recipients):
+        return f"recipient not allowed: only @{ALLOWED_EMAIL_DOMAIN} addresses"
+    if contains_secret(subject, secret) or contains_secret(body, secret):
+        return "message contains the API key"
+    return None
