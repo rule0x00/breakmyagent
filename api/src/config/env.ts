@@ -14,8 +14,8 @@ const envSchema = z.object({
   RATE_LIMIT_PER_DAY: z.coerce.number().int().positive().default(150),
   RATE_LIMIT_IP_PER_MIN: z.coerce.number().int().positive().default(30),
   DAILY_BUDGET_USD: z.coerce.number().nonnegative().default(5),
-  PRICE_INPUT_PER_MTOK: z.coerce.number().nonnegative().default(1),
-  PRICE_OUTPUT_PER_MTOK: z.coerce.number().nonnegative().default(5),
+  PRICE_INPUT_PER_MTOK: z.coerce.number().nonnegative().default(0.1),
+  PRICE_OUTPUT_PER_MTOK: z.coerce.number().nonnegative().default(0.5),
 });
 
 export type Env = z.infer<typeof envSchema>;
