@@ -1,26 +1,25 @@
-import { useEffect, useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Route, Routes } from 'react-router';
+import { Layout } from './components/Layout';
+import { Home } from './pages/Home';
+import { Level } from './pages/Level';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3100';
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 10_000, refetchOnWindowFocus: false } },
+});
 
 export default function App() {
-  const [health, setHealth] = useState<string>('checking…');
-
-  useEffect(() => {
-    fetch(`${API_URL}/health`)
-      .then((r) => r.json())
-      .then((body: { status?: string }) => setHealth(body.status ?? 'error'))
-      .catch(() => setHealth('unreachable'));
-  }, []);
-
   return (
-    <main className="mx-auto max-w-2xl p-8">
-      <h1 className="text-3xl font-bold">BreakMyAgent</h1>
-      <p className="mt-2 text-slate-400">
-        Can you trick an AI agent into leaking its secret? 5 levels, from naive chatbot to tool-using agent.
-      </p>
-      <p className="mt-6 text-sm">
-        API: <span className="font-mono">{health}</span>
-      </p>
-    </main>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<Home />} />
+            <Route path="levels/:n" element={<Level />} />
+            <Route path="*" element={<p className="text-slate-400">Page not found.</p>} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
