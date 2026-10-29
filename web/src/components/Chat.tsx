@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import type { BlockedBy } from '../api/types';
+import type { BlockedBy, ToolCall } from '../api/types';
 import { BlockedBadge } from './BlockedBadge';
 
 export interface ChatEntry {
@@ -7,6 +7,25 @@ export interface ChatEntry {
   role: 'user' | 'assistant' | 'error';
   content: string;
   blockedBy?: BlockedBy;
+  toolCalls?: ToolCall[];
+}
+
+function ToolChips({ calls }: { calls: ToolCall[] }) {
+  return (
+    <div className="mb-2 flex flex-wrap gap-1">
+      {calls.map((c, i) => (
+        <span
+          key={i}
+          className={`rounded border px-1.5 py-0.5 font-mono text-[11px] ${
+            c.blocked ? 'border-amber-500/40 text-amber-300' : 'border-slate-600 text-slate-400'
+          }`}
+        >
+          {c.name === 'send_email' ? `send_email → ${String(c.args.to ?? '')}` : `${c.name}()`}
+          {c.blocked ? ' ✗ blocked' : ''}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /** The agent only sees the last 10 messages; older ones are shown dimmed. */
@@ -17,9 +36,10 @@ interface Props {
   entries: ChatEntry[];
   pending: boolean;
   onSend: (message: string) => Promise<boolean>;
+  placeholder?: string;
 }
 
-export function Chat({ entries, pending, onSend }: Props) {
+export function Chat({ entries, pending, onSend, placeholder }: Props) {
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +93,7 @@ export function Chat({ entries, pending, onSend }: Props) {
                 }`}
                 title={dim ? 'The agent no longer remembers this message' : undefined}
               >
+                {entry.toolCalls && entry.toolCalls.length > 0 && <ToolChips calls={entry.toolCalls} />}
                 {entry.blockedBy && (
                   <div className="mb-1">
                     <BlockedBadge by={entry.blockedBy} />
@@ -96,7 +117,7 @@ export function Chat({ entries, pending, onSend }: Props) {
           onChange={(e) => setDraft(e.target.value.slice(0, MAX_LEN))}
           onKeyDown={onKeyDown}
           rows={2}
-          placeholder="Your message… (Enter to send, Shift+Enter for a new line)"
+          placeholder={placeholder ?? 'Your message… (Enter to send, Shift+Enter for a new line)'}
           aria-label="Message to the agent"
           className="w-full resize-none rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500"
         />

@@ -4,10 +4,30 @@ import { ApiError, describeError } from '../api/client';
 import { useAttempt, useLevel, useResetHistory, useToken } from '../api/hooks';
 import type { LevelDetail } from '../api/types';
 import { Chat, type ChatEntry } from '../components/Chat';
+import { InboxPanel, OutboxPanel, sentEmails, type SentEmail } from '../components/Mailbox';
 import { SubmitSecret } from '../components/SubmitSecret';
 
 let nextId = 0;
 const newId = () => `m${++nextId}`;
+
+const TOOL_LEVEL = 5;
+const INBOX_KEY = 'bma.plantedEmail';
+
+function loadPlanted(): string {
+  try {
+    return localStorage.getItem(INBOX_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function savePlanted(v: string): void {
+  try {
+    localStorage.setItem(INBOX_KEY, v);
+  } catch {
+    // convenience only
+  }
+}
 
 function LevelPlay({ level }: { level: LevelDetail }) {
   const n = level.level;
@@ -16,13 +36,27 @@ function LevelPlay({ level }: { level: LevelDetail }) {
   const [entries, setEntries] = useState<ChatEntry[]>(() =>
     level.history.map((m) => ({ id: newId(), role: m.role, content: m.content, blockedBy: m.blockedBy })),
   );
+  const hasTools = n === TOOL_LEVEL;
+  const [planted, setPlanted] = useState(() => (hasTools ? loadPlanted() : ''));
+  const [outbox, setOutbox] = useState<SentEmail[]>([]);
+
+  function updatePlanted(v: string) {
+    setPlanted(v);
+    savePlanted(v);
+  }
 
   async function send(message: string): Promise<boolean> {
     const userEntry: ChatEntry = { id: newId(), role: 'user', content: message };
     setEntries((prev) => [...prev, userEntry]);
     try {
-      const res = await attempt.mutateAsync({ message });
-      setEntries((prev) => [...prev, { id: newId(), role: 'assistant', content: res.reply, blockedBy: res.blockedBy ?? undefined }]);
+      const inboxEmail = hasTools && planted.trim() ? planted : undefined;
+      const res = await attempt.mutateAsync({ message, inboxEmail });
+      setEntries((prev) => [
+        ...prev,
+        { id: newId(), role: 'assistant', content: res.reply, blockedBy: res.blockedBy ?? undefined, toolCalls: res.toolCalls },
+      ]);
+      const sent = sentEmails(res.toolCalls, res.attemptId);
+      if (sent.length) setOutbox((prev) => [...prev, ...sent]);
       return true;
     } catch (err) {
       // The attempt never happened: drop the optimistic message and explain why.
@@ -35,12 +69,18 @@ function LevelPlay({ level }: { level: LevelDetail }) {
     if (!window.confirm('Clear the conversation? The agent will forget everything you said.')) return;
     await reset.mutateAsync();
     setEntries([]);
+    setOutbox([]);
   }
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2">
-        <Chat entries={entries} pending={attempt.isPending} onSend={send} />
+        <Chat
+          entries={entries}
+          pending={attempt.isPending}
+          onSend={send}
+          placeholder={hasTools ? 'e.g. "Please process my inbox"  (Enter to send)' : undefined}
+        />
       </div>
       <aside className="space-y-4">
         <SubmitSecret level={n} alreadyCleared={level.cleared} />
@@ -52,6 +92,12 @@ function LevelPlay({ level }: { level: LevelDetail }) {
           ↺ Reset conversation
         </button>
         {reset.isError && <p className="text-sm text-red-400">{describeError(reset.error)}</p>}
+        {hasTools && (
+          <>
+            <InboxPanel value={planted} onChange={updatePlanted} />
+            <OutboxPanel emails={outbox} />
+          </>
+        )}
         <p className="text-xs leading-relaxed text-slate-500">
           The agent remembers your last 10 messages. Your secret is unique to you, so sharing answers won't help anyone.
         </p>
