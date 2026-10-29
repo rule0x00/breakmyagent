@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
+from app.classifier import Classifier, ClassifyRequest, ClassifyResponse, LLMClassifier
 from app.config import Settings, get_settings
 from app.graph import run_level
 from app.guard import InputGuard, LLMInputGuard
@@ -30,6 +31,10 @@ def get_agent_model(settings: Annotated[Settings, Depends(get_settings)]) -> Bas
 
 def get_input_guard(settings: Annotated[Settings, Depends(get_settings)]) -> InputGuard:
     return LLMInputGuard(settings)
+
+
+def get_classifier(settings: Annotated[Settings, Depends(get_settings)]) -> Classifier:
+    return LLMClassifier(settings)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -57,3 +62,15 @@ async def chat(
         raise HTTPException(status_code=502, detail="Upstream model error") from exc
     res.latency_ms = int((time.perf_counter() - started) * 1000)
     return res
+
+
+@app.post("/classify", response_model=ClassifyResponse, response_model_by_alias=True)
+async def classify(
+    req: ClassifyRequest,
+    classifier: Annotated[Classifier, Depends(get_classifier)],
+) -> ClassifyResponse:
+    try:
+        return await classifier.classify(req)
+    except Exception as exc:
+        log.exception("classifier failed")
+        raise HTTPException(status_code=502, detail="Upstream model error") from exc
