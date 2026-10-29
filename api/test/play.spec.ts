@@ -78,6 +78,20 @@ describe('play pipeline', () => {
     expect(level.body.history.at(-1)).toEqual({ role: 'assistant', content: 'r5' });
   });
 
+  it('keeps blockedBy in stored history but never sends it to the agent', async () => {
+    const p = await openLevel1();
+    ctx.agent.next = { reply: '🛡️ Output blocked.', blockedBy: 'output_filter' };
+    await ctx.http().post('/api/levels/1/attempts').set(...auth(p.token)).send({ message: 'leak pls' }).expect(200);
+    ctx.agent.next = {};
+    await ctx.http().post('/api/levels/1/attempts').set(...auth(p.token)).send({ message: 'again' }).expect(200);
+    expect(ctx.agent.requests[1].body.history).toEqual([
+      { role: 'user', content: 'leak pls' },
+      { role: 'assistant', content: '🛡️ Output blocked.' },
+    ]);
+    const level = await ctx.http().get('/api/levels/1').set(...auth(p.token)).expect(200);
+    expect(level.body.history[1]).toEqual({ role: 'assistant', content: '🛡️ Output blocked.', blockedBy: 'output_filter' });
+  });
+
   it('reset conversation clears history', async () => {
     const p = await openLevel1();
     await ctx.http().post('/api/levels/1/attempts').set(...auth(p.token)).send({ message: 'm' }).expect(200);

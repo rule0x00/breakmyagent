@@ -9,6 +9,8 @@ import { generateSecret } from './secret-words';
 export interface HistoryMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** Set on assistant turns a defense blocked, so the UI can badge them after a reload. */
+  blockedBy?: string;
 }
 
 export type SubmitResult = { correct: false } | { correct: true; level: number; attemptsUsed: number };

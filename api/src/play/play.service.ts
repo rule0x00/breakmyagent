@@ -42,7 +42,8 @@ export class PlayService {
     await this.limiter.consumeAttempt(playerId, ipHash);
     await this.levels.assertPlayable(playerId, level);
     const secret = await this.levels.ensureSecret(playerId, level);
-    const history = await this.levels.history(playerId, level);
+    // The agent only gets role + content; UI-only fields stay in the API.
+    const history = (await this.levels.history(playerId, level)).map(({ role, content }) => ({ role, content }));
 
     let res: AgentChatResponse;
     try {
@@ -80,7 +81,7 @@ export class PlayService {
 
     await this.levels.appendHistory(playerId, level, [
       { role: 'user', content: input.message },
-      { role: 'assistant', content: res.reply },
+      { role: 'assistant', content: res.reply, ...(res.blockedBy ? { blockedBy: res.blockedBy } : {}) },
     ]);
 
     // TODO(step 7): enqueue the classify job for rows[0].id.
