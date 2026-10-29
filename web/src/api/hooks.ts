@@ -1,7 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import { api, tokenStore } from './client';
-import type { AttemptResult, LevelDetail, LevelSummary, Player, SubmitResult } from './types';
+import type {
+  AttemptResult,
+  DefenseStat,
+  FeedItem,
+  LeaderboardRow,
+  LevelDetail,
+  LevelSummary,
+  Player,
+  StatsOverview,
+  SubmitResult,
+  TechniqueStat,
+} from './types';
 
 export function useToken(): string | null {
   return useSyncExternalStore(tokenStore.subscribe, tokenStore.get, () => null);
@@ -63,4 +74,19 @@ export function useSubmitSecret(n: number) {
 
 export function useResetHistory(n: number) {
   return useMutation({ mutationFn: () => api<void>(`/api/levels/${n}/history`, { method: 'DELETE' }) });
+}
+
+export function useLeaderboard() {
+  return useQuery({ queryKey: ['leaderboard'], queryFn: () => api<LeaderboardRow[]>('/api/leaderboard') });
+}
+
+export function useFeed() {
+  return useQuery({ queryKey: ['feed'], queryFn: () => api<FeedItem[]>('/api/leaderboard/feed'), staleTime: Infinity });
+}
+
+export function useStats() {
+  const overview = useQuery({ queryKey: ['stats', 'overview'], queryFn: () => api<StatsOverview>('/api/stats/overview') });
+  const techniques = useQuery({ queryKey: ['stats', 'techniques'], queryFn: () => api<TechniqueStat[]>('/api/stats/techniques') });
+  const defenses = useQuery({ queryKey: ['stats', 'defenses'], queryFn: () => api<DefenseStat[]>('/api/stats/defenses') });
+  return { overview, techniques, defenses };
 }

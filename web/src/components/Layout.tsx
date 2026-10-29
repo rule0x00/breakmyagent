@@ -18,13 +18,19 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <header className="border-b border-slate-800">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
           <Link to="/" className="font-mono text-lg font-bold tracking-tight">
             Break<span className="text-emerald-400">My</span>Agent
           </Link>
           <nav className="flex gap-1">
             <NavLink to="/" end className={navClass}>
               Levels
+            </NavLink>
+            <NavLink to="/leaderboard" className={navClass}>
+              Leaderboard
+            </NavLink>
+            <NavLink to="/stats" className={navClass}>
+              Stats
             </NavLink>
           </nav>
           {me.data && (

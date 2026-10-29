@@ -43,3 +43,40 @@ export interface AttemptResult {
 }
 
 export type SubmitResult = { correct: false } | { correct: true; level: number; attemptsUsed: number };
+
+export interface LeaderboardRow {
+  rank: number;
+  nickname: string;
+  level: number;
+  attempts: number;
+  lastClearAt: string;
+}
+
+export interface FeedItem {
+  level: number;
+  techniques: string[];
+  blockedBy: BlockedBy | null;
+  leaked: boolean;
+  at: string;
+}
+
+export interface StatsOverview {
+  attempts: number;
+  players: number;
+  leaks: number;
+  levels: { level: number; attempts: number; leaks: number; clears: number; leakRate: number }[];
+}
+
+export interface TechniqueStat {
+  technique: string;
+  attempts: number;
+  leaks: number;
+  leakRate: number;
+  perLevel: { level: number; attempts: number; leaks: number; leakRate: number }[];
+}
+
+export interface DefenseStat {
+  defense: BlockedBy;
+  blocked: number;
+  perLevel: { level: number; blocked: number }[];
+}
